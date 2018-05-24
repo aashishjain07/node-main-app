@@ -43,13 +43,13 @@ UserSchema.methods.toJSON = function () {
 UserSchema.methods.generateAuthToken = function () {
   var user = this;
   var access = 'auth';
-  var token = jwt.sign({_id: user._id.toHexString(), access}, 'abc123').toString();
+  var token = jwt.sign({_id: user._id.toHexString(), access}, process.env.JWT_SECRET).toString();
 
-  user.tokens = user.tokens.concat([{access, token}]);
+  user.tokens.push({access, token});
 
-return user.save().then(() => {
-  return token;
-})
+  return user.save().then(() => {
+    return token;
+  });
 };
 
 UserSchema.methods.removeToken = function (token) {
@@ -57,11 +57,9 @@ UserSchema.methods.removeToken = function (token) {
 
   return user.update({
     $pull: {
-      tokens: {
-        token: {token}
-      }
+      tokens: {token}
     }
-  })
+  });
 };
 
 UserSchema.statics.findByToken = function (token) {
@@ -69,19 +67,16 @@ UserSchema.statics.findByToken = function (token) {
   var decoded;
 
   try {
-    decoded = jwt.verify(token, 'abc123');
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (e) {
-    // return new Promise((resolve, reject) => {
-    //   reject();
-    // });
     return Promise.reject();
   }
 
-    return User.findOne({
-      '_id': decoded._id,
-      'tokens.token': token,
-      'tokens.access': 'auth'
-    })
+  return User.findOne({
+    '_id': decoded._id,
+    'tokens.token': token,
+    'tokens.access': 'auth'
+  });
 };
 
 UserSchema.statics.findByCredentials = function (email, password) {
@@ -93,14 +88,14 @@ UserSchema.statics.findByCredentials = function (email, password) {
     }
 
     return new Promise((resolve, reject) => {
-    //use bcrypt compare to compare password and user.password
-    bcrypt.compare(password, user.password, (err, res) => {
-      if (res) {
-        resolve(user);
-      } else {
-        reject();
-      }
-    })
+      // Use bcrypt.compare to compare password and user.password
+      bcrypt.compare(password, user.password, (err, res) => {
+        if (res) {
+          resolve(user);
+        } else {
+          reject();
+        }
+      });
     });
   });
 };
@@ -109,20 +104,17 @@ UserSchema.pre('save', function (next) {
   var user = this;
 
   if (user.isModified('password')) {
-    //user.password
-bcrypt.genSalt(10, (err, salt) => {
-  bcrypt.hash(user.password, salt, (err, hash) => {
-    user.password = hash;
+    bcrypt.genSalt(10, (err, salt) => {
+      bcrypt.hash(user.password, salt, (err, hash) => {
+        user.password = hash;
+        next();
+      });
+    });
+  } else {
     next();
-  });
-});
-    //user.password = hash;
-    // next();
-  }else {
-    next()
   }
 });
 
-var User = mongoose.model('User', UserSchema );
+var User = mongoose.model('User', UserSchema);
 
-module.exports = {User};
+module.exports = {User}
